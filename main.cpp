@@ -5,13 +5,14 @@
 #define MPU_ADDR 0x68 // I2C address of the MPU-6050
 #define PWR_MGMT_1 0x6B
 #define ACCEL_XOUT_H 0x3B
-#define TIMESTEP 10
+#define TIMESTEP 10	//step between iterations, in ms.
+#define MAXOUTPUTSPEED 100 //Maximum speed for PID output
 
 int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
 int16_t prevAcZ, prevAcX, prevAcY, prevGyZ, prevGyX;
 int16_t offsetAcZ, offsetGyX;
 
-int i;
+int i, numSafeCycles;
 
 double CutOffFreq = 1;
 
@@ -38,7 +39,7 @@ bool PositionSafe; //Flag to indicate PID needs to be turned on
 
 const int FREEFALLTIME = 10; // iterations in freefall
 int freefallCount; //Freefall condition where we 
-double GyXSum;
+double GyXSum, offsetGyXSum, offsetAcZSum;
 
 bool dirMotor1;
 double reqVel;
@@ -51,15 +52,42 @@ int STEP_PIN2;
 
 int RobotMode; // 0 = safe, 1 = freefall, 2 = PID Controlled
 
+//Decides which mode the robot is in
+void RobotModeCalc()
+{
+	//Logic to determine RobotMode
+	if (NormAcZ + 100 > AcZ && AcZ > NormAcZ - 100)
+	{
+		RobotMode = 0;
+		freefallCount = 0;
+	}
+	else if (AcZ < NormAcZ - 100 && freefallCount < FREEFALLTIME)
+	{
+		RobotMode = 1;
+		++freefallCount;
+
+		if (freefallCount > FREEFALLTIME)
+			RobotMode = 2;
+	}
+	else
+	{
+		RobotMode = 2;
+	}
+
+}
+
+//If the robot needs balancing, outputs the velocity it needs to accelerate at
 void PidControlLoop(double measuredValue){
   
   error = SetPoint - measuredValue;
   integral += error * 0.001 * TIMESTEP;
   derivative = (error - previousError)/(0.001 * TIMESTEP);
+
+  if (abs(outputSpeed) < MAXOUTPUTSPEED)
   outputSpeed = Kp * error + Ki * integral + Kd * derivative;
+  
   previousError = error;
   delay(TIMESTEP);
-  
 }
 
 
@@ -129,6 +157,8 @@ void loop()
   GyY=Wire.read()<<8|Wire.read();  // 0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
   GyZ=Wire.read()<<8|Wire.read();  // 0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
 
+	
+
   gsx = GyX/gyroScale;   gsy = GyY/gyroScale;   gsz = GyZ/gyroScale;
 
 
@@ -160,7 +190,7 @@ void loop()
 
   //Conversion
 
-  arz = (180/PI)*atan(sqrt(square(AcY)+square(AcX))/AcZ); //calculate Z angle
+  arz = (180/PI)*acos(AcZ/NormAcZ); //calculate Z angle
 
   if (i == 1) {
     grx = arx;
@@ -175,7 +205,7 @@ void loop()
   }  
 
 
-  rz = (0.96 * arz) + (0.04 * grz); // Z fusion angles (filter high pass + low pass)
+  rz = (0.96 * arz) + (0.04 * grx); // Combining Acceleration and gyro data
   
 
   Serial.print("      "); Serial.print(AcZ);
@@ -183,38 +213,26 @@ void loop()
   Serial.print("      "); Serial.print(outputSpeed);
   Serial.println();
 
-  //Logic to determine RobotMode
-  if(NormAcZ + 100 > AcZ && AcZ > NormAcZ - 100)
-  {
-    RobotMode = 0;
-
-    freefallCount = 0;
-  }
-  else if(AcZ < NormAcZ - 100 && freefallCount < FREEFALLTIME)
-  {
-    RobotMode = 1;
-
-    ++freefallCount;
-    
-    if(freefallCount > FREEFALLTIME)
-      RobotMode = 2;
-  }
-  else
-  {
-    RobotMode = 2;
-  }
+  RobotModeCalc();
 
   if(RobotMode == 0)
   {
-    //Do some resets & calculate the offsets
-  
-    offsetAcZ = NormAcZ - AcZ;
-    offsetGyX = -GyX;
+    //Find the offsets of the Acceleromter as the average position of the robot while it is in the safe zone
+    offsetAcZSum += NormAcZ - AcZ;
+	offsetAcZ = offsetAcZSum / numSafeCycles;
+	offsetGyXSum -= GyX;
+	offsetGyX = -offsetGyXSum / numSafeCycles;
+	++numSafeCycles;
   }
   else if (RobotMode == 1)
   {
-    GyXSum += GyX + offsetGyX;
+	//Reset variables for previous loop
+	  offsetAcZSum = 0;
+	  offsetGyXSum = 0;
+	  numSafeCycles = 0;
 
+	//Use time in freefall to figure out what direction we're falling in
+    GyXSum += GyX + offsetGyX;
     if(GyXSum > 0)
       reqDir = true; //cw
     else
@@ -222,7 +240,10 @@ void loop()
   }
   if(RobotMode == 2)
   {
-    //CalculateDesiredVelocityandsteps(); <- On you, buddy
+	  //Reset variables for previous loop
+	  GyXSum = 0;
+
+	  PidControlLoop(rz);
     
     if(ControlCounter >= 1000 / (2 * reqVel))
     {
@@ -247,24 +268,4 @@ void loop()
     
     ControlCounter += TIMESTEP;
   }
-  else
-  {
-    ControlCounter = 0;
-    MotorsHigh = false;
-  }
-
-
-  // Pid Control Step
-  // 
-  PidControlLoop(rz);
-
-  // non blocking speed control.
-//  currMillis = millis();
-//
-//  if(currMillis - prevMillis >= millisBetweenSteps){
-//     prevMillis = currMillis;
-//     digitalWrite(4,HIGH);
-//     digitalWrite(4,LOW);
-//  }
-
 }
