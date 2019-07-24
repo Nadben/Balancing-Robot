@@ -10,7 +10,7 @@
 
 int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
 int16_t prevAcZ, prevAcX, prevAcY, prevGyZ, prevGyX;
-int16_t offsetAcZ, offsetGyX;
+int16_t offsetAcZ, offsetGyX, offsetAcX;
 
 int i, numSafeCycles;
 
@@ -39,7 +39,7 @@ bool PositionSafe; //Flag to indicate PID needs to be turned on
 
 const int FREEFALLTIME = 10; // iterations in freefall
 int freefallCount; //Freefall condition where we 
-double GyXSum, offsetGyXSum, offsetAcZSum;
+double offsetAcZSum, offsetAcXSum;
 
 bool dirMotor1;
 double reqVel;
@@ -61,17 +61,9 @@ void RobotModeCalc()
 		RobotMode = 0;
 		freefallCount = 0;
 	}
-	else if (AcZ < NormAcZ - 100 && freefallCount < FREEFALLTIME)
-	{
-		RobotMode = 1;
-		++freefallCount;
-
-		if (freefallCount > FREEFALLTIME)
-			RobotMode = 2;
-	}
 	else
 	{
-		RobotMode = 2;
+		RobotMode = 1;
 	}
 
 }
@@ -123,22 +115,6 @@ void setup() {
   Wire.endTransmission(true);
   i = 1;
 
-  /*
-      Digital Pin 2 and 3 is used by the Accelerometer
-  */
-
-//  // setting up digital pins to ouput.
-//  for( int i = 4;  i < 12; i++){
-//    pinMode(i, OUTPUT); 
-//  }
-
-  /*Motor 1 Setup*/
-//  Motor1Setup();
-
-  /*Motor 2 Setup*/
-//  Motor2Setup();
-
-  //optional for serial debug
   Serial.begin(9600);
 }
 
@@ -175,8 +151,6 @@ void loop()
   AcX = ((1-Alpha) * prevAcX ) + ((Alpha) * (AcX) );
   AcY = ((1-Alpha) * prevAcY ) + ((Alpha) * (AcY) );
   AcZ = ((1-Alpha) * prevAcZ ) + ((Alpha) * (AcZ) );
-
-  //
   GyX = ((1-Alpha) * prevGyX) + ((Alpha) * (GyZ) );
 
   prevAcX = AcX;
@@ -189,7 +163,6 @@ void loop()
   
 
   //Conversion
-
   arz = (180/PI)*acos(AcZ/NormAcZ); //calculate Z angle
 
   if (i == 1) {
@@ -219,42 +192,37 @@ void loop()
   {
     //Find the offsets of the Acceleromter as the average position of the robot while it is in the safe zone
     offsetAcZSum += NormAcZ - AcZ;
-	offsetAcZ = offsetAcZSum / numSafeCycles;
-	offsetGyXSum -= GyX;
-	offsetGyX = -offsetGyXSum / numSafeCycles;
-	++numSafeCycles;
+	  offsetAcZ = offsetAcZSum / numSafeCycles;
+	  offsetAcXSum += AcX;
+  	offsetAcX = -offsetAcXSum / numSafeCycles;
+    ++numSafeCycles;
   }
-  else if (RobotMode == 1)
+  if(RobotMode == 1)
   {
-	//Reset variables for previous loop
-	  offsetAcZSum = 0;
-	  offsetGyXSum = 0;
-	  numSafeCycles = 0;
+    //Reset variables for pervious loop
+    offsetAcXSum = 0;
+    offsetAcZSum = 0;
 
-	//Use time in freefall to figure out what direction we're falling in
-    GyXSum += GyX + offsetGyX;
-    if(GyXSum > 0)
-      reqDir = true; //cw
+    //Calculate Direction
+    if ((AcX + offsetAcX) >= 0)
+    {
+      reqDir = true;
+    }
     else
+    {
       reqDir = false;
-  }
-  if(RobotMode == 2)
-  {
-	  //Reset variables for previous loop
-	  GyXSum = 0;
+    }
 
+    //Calculate and output velocity to motors
 	  PidControlLoop(rz);
-    
     if(ControlCounter >= 1000 / (2 * reqVel))
     {
         ControlCounter = 0;
-
         if(MotorsHigh)
           MotorsHigh = false;
         else
           MotorsHigh = true; 
     }
-
     if(MotorsHigh)
     {
       digitalWrite(STEP_PIN1, HIGH);
