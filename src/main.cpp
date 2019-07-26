@@ -12,7 +12,9 @@
 
 int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
 int16_t prevAcZ, prevAcX, prevAcY, prevGyZ, prevGyX;
-int16_t offsetAcZ, offsetGyX;
+int16_t offsetAcZ, offsetAcX;
+int16_t offsetAcXSum, offsetAcZSum;
+
 
 int i, numSafeCycles;
 
@@ -27,18 +29,16 @@ double arx, ary, arz, grx, gry, grz, gsx, gsy, gsz, rx, ry, rz;
 double gyroScale = 131;
 
 
+// PID declaration
 double setPoint, input, output;
 double Kp = 1, Ki= 2, Kd = 0.5;
-
 PID myPid(&setPoint, &input, &output, Kp, Ki, Kd, DIRECT);
-
 int windowSize = 5000;
 
 
 const int FREEFALLTIME = 10; // iterations in freefall
 int freefallCount; 
 
-double GyXSum, offsetGyXSum, offsetAcZSum;
 double ControlCounter;
 double reqVel;
 
