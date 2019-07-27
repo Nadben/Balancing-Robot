@@ -12,7 +12,9 @@
 
 int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
 int16_t prevAcZ, prevAcX, prevAcY, prevGyZ, prevGyX;
-int16_t offsetAcZ, offsetGyX;
+int16_t offsetAcZ, offsetAcX;
+int16_t offsetAcXSum, offsetAcZSum;
+
 
 int i, numSafeCycles;
 
@@ -27,18 +29,16 @@ double arx, ary, arz, grx, gry, grz, gsx, gsy, gsz, rx, ry, rz;
 double gyroScale = 131;
 
 
+// PID declaration
 double setPoint, input, output;
 double Kp = 1, Ki= 2, Kd = 0.5;
-
 PID myPid(&setPoint, &input, &output, Kp, Ki, Kd, DIRECT);
-
 int windowSize = 5000;
 
 
 const int FREEFALLTIME = 10; // iterations in freefall
 int freefallCount; 
 
-double GyXSum, offsetGyXSum, offsetAcZSum;
 double ControlCounter;
 double reqVel;
 
@@ -54,6 +54,7 @@ uint8_t DIR_PIN2 = 10;
 
 int RobotMode; // 0 = safe, 1 = freefall, 2 = PID Controlled
 
+// 	Changes		//
 //Decides which mode the robot is in
 void RobotModeCalc()
 {
@@ -63,21 +64,12 @@ void RobotModeCalc()
 		RobotMode = 0;
 		freefallCount = 0;
 	}
-	else if (AcZ < NormAcZ - 100 && freefallCount < FREEFALLTIME)
-	{
-		RobotMode = 1;
-		++freefallCount;
-
-		if (freefallCount > FREEFALLTIME)
-			RobotMode = 2;
-	}
 	else
 	{
-		RobotMode = 2;
+		RobotMode = 1;
 	}
-
 }
-
+//			//
 
 void Motor1Setup(){
   
@@ -170,7 +162,6 @@ void loop()
   AcX = ((1-Alpha) * prevAcX ) + ((Alpha) * (AcX) );
   AcY = ((1-Alpha) * prevAcY ) + ((Alpha) * (AcY) );
   AcZ = ((1-Alpha) * prevAcZ ) + ((Alpha) * (AcZ) );
-  
   GyX = ((1-Alpha) * prevGyX) + ((Alpha) * (GyZ) );
 
   prevAcX = AcX;
@@ -188,6 +179,7 @@ void loop()
     gry = ary;
     grz = arz;
   }
+  
   // integrate to find the gyro angle
   else{
     grx = grx + (0.001 * TIMESTEP * gsx);
@@ -206,42 +198,43 @@ void loop()
   {
     //Find the offsets of the Acceleromter as the average position of the robot while it is in the safe zone
     offsetAcZSum += NormAcZ - AcZ;
+    
+    //		Changes		//
     offsetAcZ = offsetAcZSum / numSafeCycles;
-    offsetGyXSum -= GyX;
-    offsetGyX = -offsetGyXSum / numSafeCycles;
+    offsetAcXSum += AcX;
+    offsetAcX = -offsetAcXSum / numSafeCycles;
+    //				//
+    
     ++numSafeCycles;
   }
   else if (RobotMode == 1)
   {
-	//Reset variables for previous loop
-	  offsetAcZSum = 0;
-	  offsetGyXSum = 0;
-	  numSafeCycles = 0;
+    //		Changes		//
+    //Reset variables for pervious loop
+    offsetAcXSum = 0;
+    offsetAcZSum = 0;
+    numSafeCycles = 0;
 
-	//Use time in freefall to figure out what direction we're falling in
-    GyXSum += GyX + offsetGyX;
-    if(GyXSum > 0)
-      reqDir = true; //cw
+    //Calculate Direction
+    if ((AcX + offsetAcX) >= 0)
+    {
+      reqDir = true;
+    }
     else
+    {
       reqDir = false;
-  }
-  if(RobotMode == 2)
-  {
-	  //Reset variables for previous loop
-	  GyXSum = 0;
-
-
-    // I do not understand this.
+    }
+    //				//
+    
+    
     if(ControlCounter >= 1000 / (2 * reqVel))
     {
         ControlCounter = 0;
-
         if(MotorsHigh)
           MotorsHigh = false;
         else
           MotorsHigh = true; 
     }
-
 
     //! Jacob Do not touch this please !
     if(millis() - windowStartTime > windowSize){
