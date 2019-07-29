@@ -53,17 +53,16 @@ uint8_t DIR_PIN2 = 10;
 int RobotMode; // 0 = safe, 1 = freefall, 2 = PID Controlled
 
 
-void MotorControlLoop()
+void MotorControlLoop(double output)
 {
 
-  if(output == -255) output = 20;
-  if(output == 255) output = 20;
-  if(output < 255 && output >= 0) output = map(output, 0, output, 5000, 19);    
-  if(output > -255 && output <= 0) output = map(output, 0, output, 5000, 19);
+  // if(output == -255) output = 20;
+  // if(output == 255) output = 20;
+  // if(output < 255 && output >= 0) output = map(output, 0, output, 5000, 19);    
+  // if(output > -255 && output <= 0) output = map(output, 0, output, 5000, 19);
 
   unsigned long curMillis = millis();
 
-  // Time step to change to something else.. this should be working
   if(curMillis - previousMillis >= output && digitalRead(STEP_PIN1) == LOW){
     previousMillis = curMillis;
     digitalWrite(9,HIGH);
@@ -72,9 +71,11 @@ void MotorControlLoop()
      previousMillis = curMillis;
      digitalWrite(9,LOW);
   }
+  // Serial.print(output);
+  // Serial.println("");
 }
 
-void PidControlLoop(double measuredValue)
+double PidControlLoop(double measuredValue)
 {
 
   error = setPoint - measuredValue;
@@ -86,13 +87,15 @@ void PidControlLoop(double measuredValue)
 
   derivative = (error - previousError)/(0.001 * TIMESTEP);
 
-  output = -constrain(Kp * error + Ki * integral + Kd * derivative, 0, 255);
+  output = -constrain(Kp * error + Ki * integral + Kd * derivative, -255, 255);
 
   previousError = error;
+  
+  return output;
 }
 
-void CalculationStep(){
-  
+double CalculationStep(){
+  double speed;
   unsigned long  currentMillis = millis();
   if(currentMillis - previousMillis >= TIMESTEP){
 
@@ -179,12 +182,14 @@ void CalculationStep(){
           else
             MotorsHigh = true; 
       }
+      Serial.print(rz);
     
-      PidControlLoop(rz);
+      speed = PidControlLoop(rz);
       ControlCounter += TIMESTEP;
 
     }
   }
+  return speed;
 }
 
 
@@ -266,16 +271,15 @@ void loop()
   gsx = GyX/gyroScale;   gsy = GyY/gyroScale;   gsz = GyZ/gyroScale;
 
   RobotModeCalc();
-  CalculationStep();
-  MotorControlLoop();
+  MotorControlLoop(CalculationStep());
 
 
-  Serial.print(reqDir);
-  Serial.print("\t");
-  Serial.print(rz);
-  Serial.print("\t");
-  Serial.print(output);
-  Serial.println("");
+  // Serial.print(reqDir);
+  // Serial.print("\t");
+  // Serial.print(rz);
+  // Serial.print("\t");
+  // Serial.print(output); 
+  // Serial.println("");
 
 }
  
