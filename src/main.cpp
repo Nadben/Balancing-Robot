@@ -25,7 +25,7 @@ const int NormAcZ = 16763;
 unsigned long previousMillis;
 unsigned long motorPrevMillis;
 
-double arx, ary, arz, grx, gry, grz, gsx, gsy, gsz, rx, ry, rz;
+double arx = 0, ary, arz, grx, gry, grz, gsx, gsy, gsz, rx, ry, rz;
 double gyroScale = 131;
 
 // PID declaration
@@ -54,22 +54,23 @@ int RobotMode; // 0 = safe, 1 = freefall, 2 = PID Controlled
 
 void MotorControlLoop(double output)
 {
+  double out;
+  if(output == 1000.0) out = 2;
+  else if(output < 1000.0 && output >= 0.0) out = map(output, 0, 1000, 5000, 3);    
 
-  // if(output == -1000) output = 2;
-  // if(output == 1000) output = 2;
-  // if(output < 1000 && output >= 0) output = map(output, 0, output, 5000, 3);    
-  // if(output > -1000 && output <= 0) output = map(output, 0, output, 5000, 3);
 
   unsigned long curMillis = millis();
 
-  if(curMillis - motorPrevMillis >= output && digitalRead(STEP_PIN1) == LOW){
+  if(curMillis - motorPrevMillis >= out && digitalRead(STEP_PIN1) == LOW){
     motorPrevMillis = curMillis;
     digitalWrite(9,HIGH);
 
-  }else if (curMillis - motorPrevMillis >= output*2 && digitalRead(STEP_PIN1) == HIGH){
+  }else if (curMillis - motorPrevMillis >= out*2 && digitalRead(STEP_PIN1) == HIGH){
      motorPrevMillis = curMillis;
      digitalWrite(9,LOW);
   }
+
+  Serial.println(out); 
 }
 
 double PidControlLoop(double measuredValue)
@@ -84,7 +85,7 @@ double PidControlLoop(double measuredValue)
 
   derivative = (error - previousError)/(0.001 * TIMESTEP);
 
-  output = -constrain(Kp * error + Ki * integral + Kd * derivative, -1000, 1000);
+  output = -constrain(Kp * error + Ki * integral + Kd * derivative, -1000, 0);
 
   previousError = error;
   
@@ -105,11 +106,14 @@ double CalculationStep(){
       PositionSafe = true;
     }
 
+
+
     // Accel low pass filter.
     AcX = ((1-Alpha) * prevAcX ) + ((Alpha) * (AcX) );
     AcY = ((1-Alpha) * prevAcY ) + ((Alpha) * (AcY) );
     AcZ = ((1-Alpha) * prevAcZ ) + ((Alpha) * (AcZ) );
     GyX = ((1-Alpha) * prevGyX) + ((Alpha) * (GyZ) );
+
 
     prevAcX = AcX;
     prevAcY = AcY;
@@ -117,6 +121,8 @@ double CalculationStep(){
     prevGyX = GyX;
 
     AcZ = AcZ + offsetAcZ;
+    gsx = GyX/gyroScale;   gsy = GyY/gyroScale;   gsz = GyZ/gyroScale;
+
 
     // arz = (180/PI)*acos(AcZ/NormAcZ); //calculate Z angle
     arz = atan(sqrt(square(AcY)+square(AcX))/ AcZ) * (180 / PI);
@@ -168,7 +174,7 @@ double CalculationStep(){
         digitalWrite(DIR_PIN1, LOW);
         digitalWrite(DIR_PIN2, HIGH);
         reqDir = false;
-        rz *= -1;
+
       }
 
       
@@ -266,7 +272,6 @@ void loop()
   GyY=Wire.read()<<8|Wire.read();  // 0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
   GyZ=Wire.read()<<8|Wire.read();  // 0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
 
-  gsx = GyX/gyroScale;   gsy = GyY/gyroScale;   gsz = GyZ/gyroScale;
 
   RobotModeCalc();
   MotorControlLoop(CalculationStep());
@@ -274,10 +279,10 @@ void loop()
 
   // Serial.print(reqDir);
   // Serial.print("\t");
-  Serial.print(rz);
-  Serial.print("\t");
-  Serial.print(output); 
-  Serial.println("");
+  // Serial.print(rz);
+  // Serial.print("\t");
+  // Serial.print(output); 
+  // Serial.println("");
 
 }
  
