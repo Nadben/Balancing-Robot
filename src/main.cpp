@@ -7,7 +7,7 @@
 #define PWR_MGMT_1 0x6B
 #define ACCEL_XOUT_H 0x3B
 #define TIMESTEP 20	//step between iterations, in ms.
-#define MAXOUTPUTSPEED 100 //Maximum speed for PID output
+#define MAXOUTPUTSPEED 1000 //Maximum speed for PID output
 
 
 int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
@@ -28,12 +28,11 @@ unsigned long motorPrevMillis;
 double arx = 0, ary, arz, grx, gry, grz, gsx, gsy, gsz, rx, ry, rz;
 double gyroScale = 131;
 
-// PID declaration
+// PID setti
 double setPoint = 1, input, output;
 double error, integral, derivative, previousError;
 double Kp = 15, Ki= 1.5, Kd = 30;
 // PID myPid(&setPoint, &input, &output, Kp, Ki, Kd, DIRECT);
-int windowSize = 5000;
 
 const int FREEFALLTIME = 10; // iterations in freefall
 int freefallCount; 
@@ -57,7 +56,6 @@ void MotorControlLoop(double output)
   double out;
   if(output == 1000.0) out = 2;
   else if(output < 1000.0 && output >= 0.0) out = map(output, 0, 1000, 5000, 3);    
-
 
   unsigned long curMillis = millis();
 
@@ -85,7 +83,7 @@ double PidControlLoop(double measuredValue)
 
   derivative = (error - previousError)/(0.001 * TIMESTEP);
 
-  output = -constrain(Kp * error + Ki * integral + Kd * derivative, -1000, 0);
+  output = -constrain(Kp * error + Ki * integral + Kd * derivative, -MAXOUTPUTSPEED, 0);
 
   previousError = error;
   
@@ -106,14 +104,11 @@ double CalculationStep(){
       PositionSafe = true;
     }
 
-
-
     // Accel low pass filter.
     AcX = ((1-Alpha) * prevAcX ) + ((Alpha) * (AcX) );
     AcY = ((1-Alpha) * prevAcY ) + ((Alpha) * (AcY) );
     AcZ = ((1-Alpha) * prevAcZ ) + ((Alpha) * (AcZ) );
     GyX = ((1-Alpha) * prevGyX) + ((Alpha) * (GyZ) );
-
 
     prevAcX = AcX;
     prevAcY = AcY;
@@ -123,10 +118,7 @@ double CalculationStep(){
     AcZ = AcZ + offsetAcZ;
     gsx = GyX/gyroScale;   gsy = GyY/gyroScale;   gsz = GyZ/gyroScale;
 
-
-    // arz = (180/PI)*acos(AcZ/NormAcZ); //calculate Z angle
     arz = atan(sqrt(square(AcY)+square(AcX))/ AcZ) * (180 / PI);
-    // rz = arz;
 
     if (i == 1) {
       grx = arx;
@@ -177,7 +169,6 @@ double CalculationStep(){
 
       }
 
-      
       if(ControlCounter >= 1000 / (2 * reqVel))
       {
           ControlCounter = 0;
@@ -187,7 +178,6 @@ double CalculationStep(){
             MotorsHigh = true; 
       }
 
-    
       speed = PidControlLoop(rz);
       ControlCounter += TIMESTEP;
 
@@ -217,7 +207,7 @@ void Motor1Setup()
 {
   
   digitalWrite(STEP_PIN1, LOW);// Step
-  digitalWrite(DIR_PIN1, LOW);// Direction
+  digitalWrite(DIR_PIN1, LOW);// Direction tbd
   
 }
 
@@ -225,7 +215,7 @@ void Motor2Setup()
 {
   
   digitalWrite(STEP_PIN2, LOW); // Step
-  digitalWrite(DIR_PIN1, LOW); // Direction  
+  digitalWrite(DIR_PIN1, HIGH); // Direction  tbd
   
 }
 
@@ -239,10 +229,10 @@ void setup()
   Wire.write(0);     // set to zero (wakes up the MPU-6050)
   Wire.endTransmission(true);
   i = 1;
+
   // setting up digital pins to ouput.
   // for( int i = 4;  i < 12; i++){
   //    pinMode(i, OUTPUT); 
-    
   //  }
 
   pinMode(4, OUTPUT);
@@ -272,17 +262,8 @@ void loop()
   GyY=Wire.read()<<8|Wire.read();  // 0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
   GyZ=Wire.read()<<8|Wire.read();  // 0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
 
-
   RobotModeCalc();
   MotorControlLoop(CalculationStep());
-
-
-  // Serial.print(reqDir);
-  // Serial.print("\t");
-  // Serial.print(rz);
-  // Serial.print("\t");
-  // Serial.print(output); 
-  // Serial.println("");
 
 }
  
