@@ -6,11 +6,11 @@
 #define MPU_ADDR 0x68 // I2C address of the MPU-6050
 #define PWR_MGMT_1 0x6B
 #define ACCEL_XOUT_H 0x3B
-#define TIMESTEP 20	//step between iterations, in ms.
+#define TIMESTEP 10	//step between iterations, in ms.
 #define MAXOUTPUTSPEED 1000 //Maximum speed for PID output
 
 
-int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
+int16_t AcX,AcY,AcZ,GyX,GyY,GyZ;
 int16_t prevAcZ, prevAcX, prevAcY, prevGyZ, prevGyX;
 int16_t offsetAcZ, offsetAcX;
 int16_t offsetAcXSum, offsetAcZSum;
@@ -51,6 +51,10 @@ uint8_t DIR_PIN2 = 10;
 
 int RobotMode; // 0 = safe, 1 = freefall, 2 = PID Controlled
 
+
+/*Detail : This function controls the motors depending on the output of the PID Loop
+  @input = double, output of the PidControlLoop function
+  @output = void */
 void MotorControlLoop(double output)
 {
   double out;
@@ -71,6 +75,9 @@ void MotorControlLoop(double output)
   Serial.println(out); 
 }
 
+// Detail : This is the PID control loop that will feed the speed value to the motors
+// @input = double, Filtered measured value of the accelerometer
+// @output = double, speed for the motors (0 - 1000)
 double PidControlLoop(double measuredValue)
 {
 
@@ -90,14 +97,19 @@ double PidControlLoop(double measuredValue)
   return output;
 }
 
+// Detail : This function calculates the accelerometer value for the motors,
+// it also calculates and changes the direction of the motor depending on
+// the angle of the body
+// @input = void
+// @output = double, filtered angle values.
 double CalculationStep(){
   double speed;
   unsigned long  currentMillis = millis();
   if(currentMillis - previousMillis >= TIMESTEP){
 
     previousMillis = currentMillis;
-    // Data Filtering Step
 
+    // Data Filtering Step
     if(NormAcZ + 100 > AcZ && AcZ > NormAcZ - 100)
     {
       offsetAcZ = NormAcZ - AcZ;
@@ -186,8 +198,6 @@ double CalculationStep(){
   return speed;
 }
 
-
-
 //Decides which mode the robot is in
 void RobotModeCalc()
 {
@@ -237,10 +247,9 @@ void setup()
 
   pinMode(4, OUTPUT);
   pinMode(5,OUTPUT);
-  /*Motor 1 Setup*/
+
   Motor1Setup();
 
-  /*Motor 2 Setup*/
   //  Motor2Setup();
 
   //optional for serial debug
