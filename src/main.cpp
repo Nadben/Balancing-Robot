@@ -6,7 +6,7 @@
 #define MPU_ADDR 0x68 // I2C address of the MPU-6050
 #define PWR_MGMT_1 0x6B
 #define ACCEL_XOUT_H 0x3B
-#define TIMESTEP 10	//step between iterations, in ms.
+#define TIMESTEP 20	//step between iterations, in ms.
 #define MAXOUTPUTSPEED 100 //Maximum speed for PID output
 
 
@@ -22,14 +22,14 @@ double CutOffFreq = 1;
 const double Alpha = (2 * PI * CutOffFreq * 0.001 * TIMESTEP) / ((2 * PI * CutOffFreq * 0.001 * TIMESTEP) + 1); //2 * pi * cutoff Frequency
 const int NormAcZ = 16763;
 
-unsigned long long windowStartTime;
 unsigned long previousMillis;
+unsigned long motorPrevMillis;
 
 double arx, ary, arz, grx, gry, grz, gsx, gsy, gsz, rx, ry, rz;
 double gyroScale = 131;
 
 // PID declaration
-double setPoint = 0, input, output;
+double setPoint = 1, input, output;
 double error, integral, derivative, previousError;
 double Kp = 15, Ki= 1.5, Kd = 30;
 // PID myPid(&setPoint, &input, &output, Kp, Ki, Kd, DIRECT);
@@ -52,27 +52,24 @@ uint8_t DIR_PIN2 = 10;
 
 int RobotMode; // 0 = safe, 1 = freefall, 2 = PID Controlled
 
-
 void MotorControlLoop(double output)
 {
 
-  // if(output == -255) output = 20;
-  // if(output == 255) output = 20;
-  // if(output < 255 && output >= 0) output = map(output, 0, output, 5000, 19);    
-  // if(output > -255 && output <= 0) output = map(output, 0, output, 5000, 19);
+  // if(output == -1000) output = 2;
+  // if(output == 1000) output = 2;
+  // if(output < 1000 && output >= 0) output = map(output, 0, output, 5000, 3);    
+  // if(output > -1000 && output <= 0) output = map(output, 0, output, 5000, 3);
 
   unsigned long curMillis = millis();
 
-  if(curMillis - previousMillis >= output && digitalRead(STEP_PIN1) == LOW){
-    previousMillis = curMillis;
+  if(curMillis - motorPrevMillis >= output && digitalRead(STEP_PIN1) == LOW){
+    motorPrevMillis = curMillis;
     digitalWrite(9,HIGH);
 
-  }else if (curMillis - previousMillis >= output*2 && digitalRead(STEP_PIN1) == HIGH){
-     previousMillis = curMillis;
+  }else if (curMillis - motorPrevMillis >= output*2 && digitalRead(STEP_PIN1) == HIGH){
+     motorPrevMillis = curMillis;
      digitalWrite(9,LOW);
   }
-  // Serial.print(output);
-  // Serial.println("");
 }
 
 double PidControlLoop(double measuredValue)
@@ -82,12 +79,12 @@ double PidControlLoop(double measuredValue)
 
   integral += error * 0.001 * TIMESTEP;
 
-  if(integral > 4000) integral = 4000;
-  if(integral < -4000) integral = -4000;
+  if(integral > 400) integral = 400;
+  if(integral < -400) integral = -400;
 
   derivative = (error - previousError)/(0.001 * TIMESTEP);
 
-  output = -constrain(Kp * error + Ki * integral + Kd * derivative, -255, 255);
+  output = -constrain(Kp * error + Ki * integral + Kd * derivative, -1000, 1000);
 
   previousError = error;
   
@@ -123,6 +120,7 @@ double CalculationStep(){
 
     // arz = (180/PI)*acos(AcZ/NormAcZ); //calculate Z angle
     arz = atan(sqrt(square(AcY)+square(AcX))/ AcZ) * (180 / PI);
+    // rz = arz;
 
     if (i == 1) {
       grx = arx;
@@ -182,7 +180,7 @@ double CalculationStep(){
           else
             MotorsHigh = true; 
       }
-      Serial.print(rz);
+
     
       speed = PidControlLoop(rz);
       ControlCounter += TIMESTEP;
@@ -276,10 +274,10 @@ void loop()
 
   // Serial.print(reqDir);
   // Serial.print("\t");
-  // Serial.print(rz);
-  // Serial.print("\t");
-  // Serial.print(output); 
-  // Serial.println("");
+  Serial.print(rz);
+  Serial.print("\t");
+  Serial.print(output); 
+  Serial.println("");
 
 }
  
