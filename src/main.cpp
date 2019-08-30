@@ -44,17 +44,17 @@ bool reqDir;
 bool MotorsHigh;
 bool PositionSafe; //Flag to indicate PID needs to be turned on
 
-uint8_t STEP_PIN1 = 4;
-uint8_t STEP_PIN2 = 9;
-uint8_t DIR_PIN1 = 5;
-uint8_t DIR_PIN2 = 10;
+int STEP_PIN1 = 4;
+int STEP_PIN2 = 9;
+int DIR_PIN1 = 5;
+int DIR_PIN2 = 10;
 
 int RobotMode; // 0 = safe, 1 = freefall, 2 = PID Controlled
 
 
-/*Detail : This function controls the motors depending on the output of the PID Loop
-  @input = double, output of the PidControlLoop function
-  @output = void */
+//  Detail : This function controls the motors depending on the output of the PID Loop
+//  @input = double, output of the PidControlLoop function
+//  @output = void 
 void MotorControlLoop(double output)
 {
   double out;
@@ -65,11 +65,14 @@ void MotorControlLoop(double output)
 
   if(curMillis - motorPrevMillis >= out && digitalRead(STEP_PIN1) == LOW){
     motorPrevMillis = curMillis;
-    digitalWrite(9,HIGH);
+    digitalWrite(STEP_PIN1,HIGH);
+    digitalWrite(STEP_PIN2,HIGH);
 
   }else if (curMillis - motorPrevMillis >= out*2 && digitalRead(STEP_PIN1) == HIGH){
-     motorPrevMillis = curMillis;
-     digitalWrite(9,LOW);
+    motorPrevMillis = curMillis;
+
+    digitalWrite(STEP_PIN1,LOW);
+    digitalWrite(STEP_PIN2,LOW);
   }
 
   Serial.println(out); 
@@ -225,7 +228,7 @@ void Motor2Setup()
 {
   
   digitalWrite(STEP_PIN2, LOW); // Step
-  digitalWrite(DIR_PIN1, HIGH); // Direction  tbd
+  digitalWrite(DIR_PIN2, HIGH); // Direction  tbd
   
 }
 
@@ -241,7 +244,7 @@ void setup()
   i = 1;
 
   // setting up digital pins to ouput.
-  for( int i = 4;  i < 10; i++){
+  for( int i = 4;  i <= 10; i++){
      pinMode(i, OUTPUT); 
    }
 
