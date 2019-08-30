@@ -241,16 +241,13 @@ void setup()
   i = 1;
 
   // setting up digital pins to ouput.
-  // for( int i = 4;  i < 12; i++){
-  //    pinMode(i, OUTPUT); 
-  //  }
-
-  pinMode(4, OUTPUT);
-  pinMode(5,OUTPUT);
+  for( int i = 4;  i < 10; i++){
+     pinMode(i, OUTPUT); 
+   }
 
   Motor1Setup();
 
-  //  Motor2Setup();
+  Motor2Setup();
 
   //optional for serial debug
   Serial.begin(9600);
